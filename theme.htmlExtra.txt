@@ -1,0 +1,499 @@
+import { Component, OnInit,AfterViewInit,AfterViewChecked,ViewChild, ElementRef,OnDestroy } from '@angular/core';
+import { MyserviceService} from '../myservice.service';
+import { SocketioService } from '../socketio.service';
+import { from, of,interval, Subscription } from 'rxjs';
+import { isNullOrUndefined } from 'util';
+import { Router } from '@angular/router';
+import { HttpEventType, HttpErrorResponse } from '@angular/common/http';
+import { catchError, map } from 'rxjs/operators'; 
+import {UploadService} from '../upload.service';
+import Swal from 'sweetalert2/dist/sweetalert2.all.js';
+import { DomSanitizer } from '@angular/platform-browser';
+@Component({
+  selector: 'app-theme',
+  templateUrl: './theme.component.html',
+  styleUrls: ['./theme.component.css']
+})
+export class ThemeComponent implements OnInit, AfterViewChecked, OnDestroy{
+  userData:any;
+  users:any;
+  visitorInfo:any;
+  currentChatName:any;
+  currentImgUrl:any;
+  isVisible : boolean = false;
+  editable:boolean=false;
+  editable1:boolean=false;
+  chatbotResponse:any;
+  sendMsg:any;
+  msgSend: boolean;
+  msgDataAdmin: any;
+  sendMsgs:any=[];
+  currentMsgs:any=[];
+//  currentAllMsgs:any=[];
+  historyMsgs:any=[];
+  startChat:boolean=false;
+  message:any = {};
+  message1:any = {};
+  claimObj:any = {};
+  visitorObj:any = {}
+  roomObj:any ={};
+  sendUploadDetails:any={};
+  agentObj:any={};
+ // isShowDiv=true;
+ // isShowDiv1=true;
+  CurrentVisitorName: any;
+  CurrentVisitorIP: any;
+  CurrentVisitorLocation: any;
+  CurrentVisitorBrowser: any;
+  CurrentVisitorPCtype: any;
+  CurrentVisitorAdded: any;
+  CurrentVisitorOs: any;
+  CurrentVisitorId: any;
+  CurrentVisitorKey:any;
+  agentInfo: any;
+  email: any;
+  roomId: any;
+  CurrentVisitorEmail: any;
+  currentPageUrl: any;
+  agentToken:any;
+  updateAgents: any=[];
+  container: HTMLElement;
+  agentProfile:any;
+  agentName:any;
+  subscription: Subscription;
+  typing:boolean;
+  typingData:boolean=false;
+  remark:any;
+  isShown: boolean = false ; // hidden by default
+  suggetions:any;
+  autoFlag:boolean=false;
+  liveClaimedVisitor:any;
+  //----------------------fileupload decleration............................
+  fileToUpload: File = null;
+  isUploaded: boolean = false;
+  isLoaded : boolean=false;
+  public fileData = []; 
+  fileDataAdmin:any=[];
+  files  = []; 
+  imageUrl:any;
+  endChatFormData: any = {}
+  @ViewChild("fileUpload", {static: false}) fileUpload: ElementRef;
+  timeout:any;
+  endMsg:any;
+  slackArr: any = [];
+  agentId:any;
+  fileUrlNew;  
+  fileUrl;
+  currentChannel:any;
+  flagChannel:boolean=false;
+  isUploade: boolean=false;
+  fileProgress: number = 0;
+  constructor(private MyserviceService: MyserviceService, 
+    public SocketioService:SocketioService,private sanitizer: DomSanitizer,
+    public uploadService:UploadService , private router :Router) {
+      this.slackArr = [{ "name": "creative-support-desk", "id": "C0197V63R46" },
+    { "name": "sales-support-desk", "id": "C0197V63R46" }, { "name": "clientxp-support-desk", "id": "C0197V63R46" }];
+     }
+
+  ngOnInit() {
+    setTimeout(()=>{                           //<<<---using ()=> syntax
+      this.getliveClaimedVisitor();
+  }, 1000);
+    this.email= localStorage.getItem('email');
+   // this.SocketioService.agentTyping();
+    // this.container = document.getElementById("scrollContainer");
+    // this.container.scrollTop = this.container.scrollHeight;
+    this.SocketioService.setupSocketConnection();
+    this.SocketioService.getVisitorHistory();
+    this.MyserviceService.getUser().subscribe(res => {
+      this.users =res;
+    // console.log(this.users);
+    });
+    // this.MyserviceService.getVisitor().subscribe(res=> {
+    //   this.visitorInfo = res.chatsResult;
+      // this.agentInfo = res.visitorsResult;
+
+    //   });
+      //visitorInfo------------online users----APi chatsresultfield
+    this.MyserviceService.getUsers(this.email).subscribe(res =>{
+       this.userData =res;
+       this.visitorInfo = res.chatsResult;
+       this.agentInfo = res.visitorsResult;
+       console.log('getUsers agentInfo');
+       console.log(this.agentInfo);
+      // console.log('userdata');
+      // console.log(this.userData);
+       this.agentToken= this.userData.token;
+       this.agentProfile =this.userData.avatar;
+       this.agentName =this.userData.user;
+       this.agentId = this.userData.userId;
+      //  console.log('agentProfile');
+      //  console.log(this.agentProfile);
+      this.SocketioService.emitUpdatedAgent(this.agentToken);
+    });
+    this.MyserviceService.getSuggetions().subscribe(res=>{
+      this.suggetions =res;
+    });
+    this.SocketioService.chatMsgs.subscribe(res=>{
+      if(res!=null && !isNullOrUndefined( this.CurrentVisitorKey))
+      {
+        if(res.room === this.CurrentVisitorKey){
+          this.currentMsgs.push(res);
+        }      
+
+      // this.currentMsgs =  this.currentAllMsgs;
+      console.log("currentMsgs");
+        console.log(this.currentMsgs);
+        console.log("CurrentVisitorKey");
+        console.log(this.CurrentVisitorKey);
+      }
+    });
+    this.SocketioService.historyMsgs.subscribe(res=>{
+      if(res!=null)
+      {
+        this.historyMsgs=res;
+        console.log("historyMsgs");
+        console.log(this.historyMsgs);
+      }
+    });
+    console.log("loaclStorage:"+ localStorage.getItem('email'));
+    this.SocketioService.updateAgents.subscribe(res=>{
+      if(res!=null)
+      {
+        this.agentInfo=res.visitorsResult;
+        //  this.visitorInfo = res.chatsResult;
+        //  this.agentInfo = res.visitorsResult;
+        console.log('updateAgents visitorsResult agentInfo');
+        console.log(this.agentInfo);
+      }
+    });
+    this.SocketioService.liveVisitorsStatus.subscribe(res=>{
+      if(res!=null)
+      {
+        this.agentInfo=res;                               //live visitor status and count
+        console.log('liveVisitorsStatus');
+        console.log(this.agentInfo);
+      }
+    });
+    this.SocketioService.TypingVisitors.subscribe(res=>{
+      if(!isNullOrUndefined(res) && res.type ==='visitor' && res.userRoom == this.CurrentVisitorKey){
+        this.typingData = res.typing;
+      }
+    });
+    // ------------refresh liveuser evry 5sec---------------//
+    this.SocketioService.updateLiveVisitors.subscribe(res=>{
+      this.visitorInfo = res;
+      // this.newVisitorAddedSlackApi();
+      console.log('this.visitorInfo updateLiveVisitors');
+      console.log(this.visitorInfo);
+    });
+        // const source = interval(5000);
+      //this.subscription = source.subscribe(val => this.SocketioService.fetchNewVisitor());
+    }
+    ngAfterViewChecked(){
+      this.container = document.getElementById("scrollContainer");
+      if(this.container!= null){
+        this.container.scrollTop = this.container.scrollHeight;
+      }
+  
+    }
+    getCurrentChat(user){
+       this.currentChatName= user.name;
+       this.currentImgUrl =user.url;
+       this.currentMsgs=[];
+     //  console.log(user);
+    }
+    claimedVisitor(visitor){
+    this.claimObj.visitorId = visitor.id;
+    this.claimObj.visitorName =visitor.visitorName;
+    this.claimObj.agentId = this.userData.userId;
+    this.claimObj.agentName = this.userData.user;
+    this.claimObj.room= visitor.uniqueKey;
+    this.claimObj.agenttoken = this.userData.token;
+    this.SocketioService.emitVisitor(this.claimObj);
+    this.agentObj.agentId =this.userData.userId;
+    this.agentObj.agentName=this.userData.user;
+    this.agentObj.room=visitor.uniqueKey;
+    this.SocketioService.emitAgent(this.agentObj);
+   
+    this.SocketioService.getRefreshedvisitor(this.claimObj);
+    //window.location.reload();
+    // const source = this.timeout(3000);
+    // this.subscription = source.subscribe(LiveVisitor => this.getliveClaimedVisitor());
+    setTimeout(()=>{                           //<<<---using ()=> syntax
+     this.getliveClaimedVisitor();
+ }, 1000);
+    }
+    getCurrentVisitor(visitor){
+      this.CurrentVisitorId = visitor.id;
+      this.CurrentVisitorName = visitor.visitorName;
+      this.CurrentVisitorIP = visitor.ipAdd;
+      this.CurrentVisitorLocation = visitor.location;
+      this.CurrentVisitorBrowser = visitor.browser;
+      this.CurrentVisitorPCtype = visitor.deviceType;
+      this.CurrentVisitorAdded = visitor.visitedOn;
+      this.CurrentVisitorOs = visitor.osType;
+      this.CurrentVisitorKey = visitor.uniqueKey;
+      this.CurrentVisitorEmail= visitor.visitorEmail
+      this.currentPageUrl= visitor.pageurl;
+     // console.log(this.CurrentVisitorKey);
+
+      this.roomObj = {
+        roomId: visitor.uniqueKey,
+        userId:  this.userData.userId
+    }
+      this.SocketioService.emitClaimedVisitor(this.roomObj);
+      this.startChat=true;  
+       //this.allMsgs=[];
+       if(visitor.haveMsg ==true)
+       {visitor.haveMsg = false ; }
+       this.currentMsgs =[];
+     //  this.currentAllMsgs=[]
+      //  for (let i = 0; i < this.currentAllMsgs.length; i++) {
+      //     if (this.currentAllMsgs[i].reciverId == visitor.id) {
+      //       this.currentMsgs.push(this.currentAllMsgs[i]);
+      //     }
+      // } 
+      
+        // console.log(this.currentMsgs);
+        // console.log(this.historyMsgs);
+       
+
+       // this.SocketioService.getUpdatedAgent();
+    }
+    editdetail(){
+      this.editable = !this.editable;  
+      this.visitorObj.visitorId= this.CurrentVisitorKey
+      this.visitorObj.updatedName = this.CurrentVisitorName;
+      this.visitorObj.updatedEmail = this.CurrentVisitorEmail;
+      this.SocketioService.emitUpdatedVisitor(this.visitorObj);
+
+    }
+    editdetail1(){
+      this.editable1 = !this.editable1;  
+      this.visitorObj.visitorId= this.CurrentVisitorKey
+      this.visitorObj.updatedEmail = this.CurrentVisitorEmail;
+      this.SocketioService.emitUpdatedEmail(this.visitorObj);
+    }
+    sendMsg1(){
+      this.autoFlag =false;   
+      if(!isNullOrUndefined(this.sendMsg) && this.sendMsg != ''){
+        //this.sendMsgs.push(this.sendMsg);
+      this.msgSend=true; 
+      this.message.msg= this.sendMsg;
+      this.message.type= 'server';
+      this.message.room= this.CurrentVisitorKey, //umiqu key
+      this.message.senderId= this.userData.userId, //agentId
+      this.message.reciverId= this.CurrentVisitorId, //currentvisitor Id
+      this.message.username=this.userData.user;//AgentName
+      this.message.time = new Date();
+      this.message.agentProfile =this.userData.avatar;
+      this.SocketioService.sendChatMsg(this.message);
+      // this.scorllPosition();
+      console.log('sendMsg1');
+      console.log(this.message);
+      this.message={};
+      this.sendMsg='';
+      } 
+    }
+    logout(){
+      localStorage.removeItem('email');
+      this.router.navigate(['/login']);
+    }
+
+// ------------------------------uploadfile code ---------------------------//
+uploadFile(file) {  //step3
+  const data = {
+    senderID:this.userData.userId,
+    reciverId:this.CurrentVisitorId,
+    roomId:this.CurrentVisitorKey,
+    senderName:this.userData.user,
+    files:file.data
+  }
+  this.MyserviceService.getUploads(data).subscribe(result=>{
+    const obj = {
+      fileType: result.fileType,
+      fileUrl:result.fileUrl,
+      senderId: this.userData.userId,
+      reciverId:this.CurrentVisitorId,
+      type: 'server',
+      room: this.CurrentVisitorKey,
+      username: this.userData.user,
+      time:new Date()
+    }
+    this.SocketioService.saveImage(obj);
+    console.log(' Upload result');
+    console.log(result);
+  });   
+}
+private uploadFiles() {  //step2
+  this.fileUpload.nativeElement.value = '';  
+  this.files.forEach(file => {  
+    this.uploadFile(file);  
+  }); 
+}
+sendUploadFiles() {  // step1
+  this.files  = []; //empty the array for new request
+  const fileUpload = this.fileUpload.nativeElement;
+  fileUpload.onchange = () => {  
+  for (let index = 0; index < fileUpload.files.length; index++)  
+{  
+ const file = fileUpload.files[index];  
+ this.files.push({ data: file}); 
+ //--------------------------download Files-------------------------------//
+ const data=file;
+ const blob = new Blob([data], { type: 'application/octet-stream' });
+ this.fileUrl = this.sanitizer.bypassSecurityTrustResourceUrl(window.URL.createObjectURL(blob));
+}   
+// const reader = new FileReader();
+// reader.onload = () =>{
+//   this.imageUrl = reader.result;
+// // console.log('name=='+JSON.stringify(typeof(this.imageUrl)));
+// }
+// reader.readAsDataURL(this.files[0]); 
+  this.uploadFiles();  
+};  
+fileUpload.click();  
+
+}
+// ------------------------- show hide visitor Live Visitor ------------------//
+toggleDiv(){
+  //this.isShowDiv =!this.isShowDiv;
+  //console.log(this.updateAgents);
+}
+toggleDiv1(){
+  //this.isShowDiv1 =!this.isShowDiv1;
+  //console.log(this.visitorInfo);
+}
+//----------------------visitor typing status on agent side-------------------//
+typingStatus(){
+  this.autoFlag=true; //autosuggetion Flag
+  this.typing=true;
+  clearTimeout(this.timeout);
+  const typingObj = {
+    typing:this.typing,
+    userRoom:this.CurrentVisitorKey,
+    type:'agent'
+}
+  this.SocketioService.emitTypingStatus(typingObj);
+  this.timeout =  setTimeout( () => {
+    this.typing=false;
+    const typingObj = {
+        typing:this.typing,
+        userRoom:this.CurrentVisitorKey,
+        type:'agent'
+    }
+    this.SocketioService.emitTypingStatus(typingObj);
+  },3000);
+}
+//--------------------------endChat exitChat -section------------------------//
+endChat(){
+  this.submitEndChat();
+  this.MyserviceService.getendChat(this.CurrentVisitorKey).subscribe(result=>{
+  });
+  const endMsgObj = {
+    msg:"Chat was Ended",
+    userRoomID:this.CurrentVisitorKey 
+}
+  this.SocketioService.endChatsend(endMsgObj);
+  //this.startChat = false;
+  this.sendMsg="I am marking our chat as complete for now. You can always start a new chat here"
+  this.sendMsg1();
+
+ Swal.fire({text:'Chat Successfully Ended...',
+            icon:'success'}).then((result) => {
+             // console.log(result);
+            //  const source = interval(1000)
+            //   window.location.reload();
+              });
+
+}
+exitChat(){
+  this.remark;
+  this.MyserviceService.getExitChat(this.CurrentVisitorKey,this.remark).subscribe(result=>{
+    Swal.fire({text:'Chat Successfully Exited...',
+    icon:'success'});
+  });
+  this.startChat = false;
+}
+ngOnDestroy(){
+  this.subscription.unsubscribe();
+ // this.subscription.unsubscribe();name
+ // `<!channel> Please take this request ahead
+  //   Client Name - ${name}
+  //   Project Name - ${project}
+  //   Email - ${email}
+  //   Message - ${msg}
+	// Chat link - https://agent.greatco.co/agent/${agentid}/visitor/${visitorid}`
+}
+toggleShow() {
+  this.isShown = ! this.isShown;
+}
+  toggleClose() {
+
+    this.isShown = false;
+    
+}
+sendAutosuggetion(autoText){
+  this.sendMsg= autoText;
+  this.autoFlag =false;   
+}
+submitEndChat() {
+  // this.generateChatReport()
+  let chatLink = `https://greatco.greatco.co/report/agent/${this.agentId}/visitor/${this.CurrentVisitorId}`
+  let conversationId;
+  document.getElementById('closeEndchatForm').click();
+  this.slackArr.forEach(element => {
+    if (element.name === this.endChatFormData.channel_name) {
+      conversationId = element.id;
+    }
+  });
+  this.MyserviceService.endChatMessage(this.endChatFormData.message, conversationId, this.endChatFormData.project, this.CurrentVisitorName, this.CurrentVisitorEmail , chatLink).subscribe(data => {
+    // console.log(JSON.stringify(data));
+    this.endChatFormData = {};
+  }, (e) => {
+
+  })
+}
+
+optionChange(){
+  if(this.endChatFormData.channel_name === 'creative-support-desk'){
+    this.flagChannel = true;
+  }
+  else{
+    this.flagChannel = false;
+  }
+}
+// generateChatReport(){
+//   this.router.navigate(['report/agent',this.agentId,'visitor',this.CurrentVisitorId]);
+// }
+getliveClaimedVisitor(){
+  this.MyserviceService.getLiveClaimedVisitor(this.email).subscribe(x=>{
+    this.liveClaimedVisitor=x.visitorsResult
+    console.log("liveClaimedVisitor");
+    console.log(this.liveClaimedVisitor);
+    console.log("claimObj");
+    console.log(this.claimObj);
+    const currentClaimedVisitor =  this.liveClaimedVisitor.find(x=>x.visitorId == this.claimObj.visitorId && x.agentId == this.claimObj.agentId);
+    console.log("currentClaimedVisitor");
+    console.log(currentClaimedVisitor);
+    this.MyserviceService.isVisitorClaimed(currentClaimedVisitor.visitorId).subscribe(x=>{
+      if( x === "TRUE"){
+    this.message={};
+    this.message.msg= this.claimObj.agentName +" has joined chat";
+    this.message.type= 'joinChat';
+    this.message.username=this.userData.user;//AgentName
+    this.message.time = new Date();
+    this.message.room= currentClaimedVisitor.uniqueKey, //umiqu key
+    this.message.senderId= this.userData.userId, //agentId
+    this.message.reciverId=currentClaimedVisitor.visitorId, //currentvisitor Id
+    this.message.avatar = this.userData.avatar;
+    this.SocketioService.sendChatMsg(this.message);
+    this.message={};
+      }
+    });
+    });
+}
+
+}
+
